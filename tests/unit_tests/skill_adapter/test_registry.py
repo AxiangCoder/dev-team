@@ -88,3 +88,13 @@ def test_factory_builds_registry_with_single_call() -> None:
         context={"allowed_skills": ["project-manager"], "logs": []},
     )
     assert result.output["skill_name"] == "project-manager"
+
+
+def test_build_skills_prompt_returns_prompt_text() -> None:
+    registry = build_skill_registry("tests/fixtures/skills/native")
+
+    skills_prompt = registry.build_skills_prompt()
+
+    assert skills_prompt.startswith("Available skills:")
+    assert "- backend-engineer:" in skills_prompt
+    assert "- project-manager:" in skills_prompt

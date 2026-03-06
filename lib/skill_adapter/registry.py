@@ -51,6 +51,24 @@ class SkillRegistry:
         """List registered skill names in sorted order."""
         return sorted(self._skills.keys())
 
+    def get_skill(self, skill_name: str) -> SkillRuntime:
+        """Get one registered skill runtime by name."""
+        if skill_name not in self._skills:
+            available = ", ".join(self.list_skills()) or "none"
+            raise SkillNotFoundError(
+                f"Skill '{skill_name}' not found. Available skills: {available}"
+            )
+        return self._skills[skill_name]
+
+    def build_skills_prompt(self, title: str = "Available skills:") -> str:
+        """Build a concise prompt section from registered skill descriptions."""
+        lines = [title]
+        for skill_name in self.list_skills():
+            runtime = self._skills[skill_name]
+            description = runtime.description.strip() or "No description."
+            lines.append(f"- {runtime.name}: {description}")
+        return "\n".join(lines)
+
     def use(self, middleware: SkillMiddleware) -> None:
         """Append one middleware into the execution pipeline."""
         self._middlewares.append(middleware)
