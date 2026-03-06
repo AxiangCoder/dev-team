@@ -47,8 +47,13 @@ class SkillLoader:
         if not skill_markdown:
             raise SkillDefinitionError(f"SKILL.md is empty in {directory}")
 
-        skill_name = directory.name
-        description = self._extract_description(skill_markdown)
+        frontmatter = self._parse_frontmatter(skill_markdown)
+        skill_name = str(frontmatter.get("name", "")).strip()
+        if not skill_name:
+            raise SkillDefinitionError(
+                f"SKILL.md missing required frontmatter field 'name' in {directory}"
+            )
+        description = self._extract_description(skill_markdown, frontmatter)
 
         skill_spec = SkillSpec(
             name=skill_name,
@@ -70,15 +75,39 @@ class SkillLoader:
             metadata=skill_spec.metadata,
         )
 
-    def _extract_description(self, skill_markdown: str) -> str:
+    def _extract_description(
+        self, skill_markdown: str, frontmatter: dict[str, str]
+    ) -> str:
+        description = frontmatter.get("description", "").strip()
+        if description:
+            return description[:140]
+
         for line in skill_markdown.splitlines():
             normalized = line.strip()
             if not normalized:
+                continue
+            if normalized == "---":
                 continue
             if normalized.startswith("#"):
                 continue
             return normalized[:140]
         return "Skill loaded from SKILL.md"
+
+    def _parse_frontmatter(self, skill_markdown: str) -> dict[str, str]:
+        lines = skill_markdown.splitlines()
+        if len(lines) < 3 or lines[0].strip() != "---":
+            return {}
+
+        metadata: dict[str, str] = {}
+        for line in lines[1:]:
+            normalized = line.strip()
+            if normalized == "---":
+                return metadata
+            if ":" not in normalized:
+                continue
+            key, value = normalized.split(":", maxsplit=1)
+            metadata[key.strip()] = value.strip()
+        return {}
 
     def _build_default_handler(self, skill_spec: SkillSpec):
         def _handler(input_data):

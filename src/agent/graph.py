@@ -11,14 +11,14 @@ from langgraph.graph import StateGraph
 
 from src.agent.context import Context
 from src.agent.state import MessagesState
-from src.agent.nodes.team import hello_node
+from src.agent.nodes.team import team
 
 
 # Define the graph
 graph = (
     StateGraph(MessagesState, context_schema=Context)
-    .add_node(hello_node)
-    .add_edge("__start__", "hello_node")
-    .add_edge("hello_node", "__end__")
+    .add_node(team)
+    .add_edge("__start__", "team")
+    .add_edge("team", "__end__")
     .compile()
 )

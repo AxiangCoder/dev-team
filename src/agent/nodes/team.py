@@ -22,7 +22,7 @@ skill_prompts = skill_registry.build_skills_prompt()
 logger = logging.getLogger(__name__)
 
 
-async def hello_node(state: MessagesState, runtime: Runtime[Context]):
+async def team(state: MessagesState, runtime: Runtime[Context]):
     project_id = runtime.context.project_id
     # model = runtime.context.model
     system_prompt = runtime.context.system_prompt + "\n\n" + skill_prompts

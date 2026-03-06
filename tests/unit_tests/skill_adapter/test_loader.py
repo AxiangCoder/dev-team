@@ -27,3 +27,9 @@ def test_runtime_handler_returns_instruction_packet() -> None:
     assert output["skill_name"] == "project-manager"
     assert "Create milestones" in output["instructions"]
     assert output["input"] == {"query": "plan q2"}
+
+
+def test_load_skill_missing_name_in_frontmatter_raises() -> None:
+    loader = SkillLoader()
+    with pytest.raises(SkillDefinitionError):
+        loader.load_skill(Path("tests/fixtures/skills/native-invalid/missing-name"))
