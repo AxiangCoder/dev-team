@@ -1,31 +1,32 @@
-from typing_extensions import TypedDict, Annotated
-from typing import cast
 from pathlib import Path
 from datetime import datetime
+from pydantic import BaseModel
 import os
 import logging
 
 
 from langgraph.runtime import Runtime
-from langgraph.store.base import BaseStore
-from lib.skill_adapter import build_skill_registry
+from langchain_core.messages import AIMessage, SystemMessage
 
-from src.agent.utils import context_tools
 from src.agent.context import Context
 from src.agent.state import MessagesState, summarize_conversation
 from src.agent.utils.load_models import load_models
+from src.agent.utils.skill_tool import get_skill_adapter
 
-
-skill_registry = build_skill_registry(Path("src/agent/skills"))
+skill_registry = get_skill_adapter()
 skill_prompts = skill_registry.build_skills_prompt()
 
 logger = logging.getLogger(__name__)
 
 
+class MainResponse(BaseModel):
+    message: str = ""
+    nest_skill: str | None = None
+
+
 async def team(state: MessagesState, runtime: Runtime[Context]):
     project_id = runtime.context.project_id
     # model = runtime.context.model
-    system_prompt = runtime.context.system_prompt + "\n\n" + skill_prompts
     # cleaned_messages = context_tools.clear_image_data(list(state.messages))
     memories_text = "无相关记忆"
     # query = context_tools.get_clean_query(cleaned_messages)
@@ -38,20 +39,41 @@ async def team(state: MessagesState, runtime: Runtime[Context]):
     #             memories_text = "\n".join([f"- {m.value}" for m in memories])
     #     except Exception as exc:
     #         logger.error("Memory search failed in hello_node: %s", exc)
-
     llm = load_models()
-    sys_content = system_prompt.format(
-        memories=memories_text, time=datetime.now().isoformat()
-    )
-
     messages = state.get("messages", [])
-    if messages and len(messages) > 10:
-        messages = summarize_conversation(state)["messages"] + messages[-10:]
-    ai_msg = await llm.ainvoke(
-        [
-            {"role": "system", "content": sys_content},
-            # *cleaned_messages,
-            *messages[-10:],
-        ]
-    )
-    return {"messages": [ai_msg]}
+    last = messages[-1]
+    last_content = getattr(last, "content", "")
+    if not isinstance(last_content, str) and isinstance(last_content, dict):
+        last_content = last.get("content", "")
+    skills = skill_registry.list_skills()
+    for skill_name in skills:
+        if skill_name in last_content:
+            skill = skill_registry.get_skill(skill_name)
+            result = skill.handler({"messages": messages, "context": runtime.context})
+            ai_msg = await llm.ainvoke([SystemMessage(content=result["instructions"])])
+            return {"messages": [ai_msg]}
+    else:
+        system_prompt = runtime.context.system_prompt.format(
+            memories=memories_text,
+            time=datetime.now().isoformat(),
+            skill_prompts=skill_prompts,
+            next_skill="",
+        )
+        messages = state.get("messages", [])
+        if messages and len(messages) > 10:
+            messages = summarize_conversation(state)["messages"] + messages[-10:]
+        # ai_msg = await llm.with_structured_output(MainResponse).ainvoke(
+        #     [
+        #         {"role": "system", "content": system_prompt},
+        #         # *cleaned_messages,
+        #         *messages[-10:],
+        #     ]
+        # )
+        ai_msg = await llm.ainvoke(
+            [
+                {"role": "system", "content": system_prompt},
+                # *cleaned_messages,
+                # *messages[-10:],
+            ]
+        )
+        return {"messages": [ai_msg]}

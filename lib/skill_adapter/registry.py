@@ -77,7 +77,8 @@ class SkillRegistry:
         self,
         skill_name: str,
         input_data: Any,
-        context: dict[str, Any] | None = None,
+        # context: dict[str, Any] | None = None,
+        context: Any,
     ) -> SkillExecutionResult:
         """Execute one skill by name with middleware and typed response."""
         if skill_name not in self._skills:
@@ -89,7 +90,7 @@ class SkillRegistry:
         request = SkillExecutionRequest(
             skill_name=skill_name,
             input_data=input_data,
-            context=context or {},
+            context=context,
         )
 
         invoker = self._build_invoker()

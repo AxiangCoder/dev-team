@@ -1,6 +1,7 @@
 import operator
 from typing import Any, cast
 from typing_extensions import Annotated, TypedDict
+from pydantic import BaseModel
 
 from langchain_core.messages import AnyMessage
 from langchain_core.messages import RemoveMessage, HumanMessage

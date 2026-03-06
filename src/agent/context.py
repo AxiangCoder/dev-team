@@ -3,7 +3,7 @@ from typing_extensions import Annotated, TypedDict
 import os
 
 
-system_prompt = """
+system_prompt_1 = """
 # Role: 全能软件开发中枢 (Dev-Central Intelligence)
 
 ## Profile
@@ -25,15 +25,29 @@ system_prompt = """
 - {time}
 """
 
+system_prompt = """
+你是一个开发团队的助理，负责收集客户的输入，并协助团队成员完成软件开发相关的任务。
+要求：
+1. 用户说的和你的任意技能无关，则引导用户提出真实需求
+2. 只回答 skill 的名称，除此之外 **严禁** 输出任何其他内容，包括但不限于解释、引导语、代码等。
+
+
+你具备以下技能：
+{skill_prompts}
+如果{next_skill}不为None，说明需要调用{next_skill}技能来完成当前任务。
+memories: {memories}
+当前时间: {time}
+"""
+
 
 @dataclass(kw_only=True)
 class Context:
     """Main context class for the memory graph system."""
 
-    project_id: str
+    project_id: str = "123123123"
     """The ID of the user to remember in the conversation."""
 
-    user_id: str
+    user_id: str = "123123123"
 
     model: Annotated[str, {"__template_metadata__": {"kind": "llm"}}] = field(
         default="anthropic/claude-sonnet-4-5-20250929",

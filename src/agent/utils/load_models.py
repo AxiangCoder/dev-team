@@ -1,7 +1,11 @@
 from typing import Any
-from functools import lru_cache
-from langchain.chat_models import init_chat_model
 import os
+from functools import lru_cache
+
+
+from langchain.chat_models import init_chat_model
+from langchain_core.language_models import BaseChatModel
+
 
 MODEL = os.getenv("MODEL", "anthropic/claude-sonnet-4-5-20250929")
 MODEL_PROVIDER = os.getenv("MODEL_PROVIDER", "anthropic")
@@ -15,7 +19,7 @@ def load_models(
     model: str = MODEL,
     api_key: str = API_KEY,
     **kwargs: Any,
-):
+) -> BaseChatModel:
     """Load models based on the provided model name and temperature."""
 
     if kwargs.get("temperature") is None:

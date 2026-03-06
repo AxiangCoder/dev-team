@@ -54,7 +54,6 @@ class SkillLoader:
                 f"SKILL.md missing required frontmatter field 'name' in {directory}"
             )
         description = self._extract_description(skill_markdown, frontmatter)
-
         skill_spec = SkillSpec(
             name=skill_name,
             description=description,
@@ -67,11 +66,11 @@ class SkillLoader:
                 "references_path": str(directory / "references"),
             },
         )
-
+        handler = self._build_default_handler(skill_spec)
         return SkillRuntime(
             name=skill_spec.name,
+            handler=handler,
             description=skill_spec.description,
-            handler=self._build_default_handler(skill_spec),
             metadata=skill_spec.metadata,
         )
 
@@ -81,17 +80,7 @@ class SkillLoader:
         description = frontmatter.get("description", "").strip()
         if description:
             return description[:140]
-
-        for line in skill_markdown.splitlines():
-            normalized = line.strip()
-            if not normalized:
-                continue
-            if normalized == "---":
-                continue
-            if normalized.startswith("#"):
-                continue
-            return normalized[:140]
-        return "Skill loaded from SKILL.md"
+        return ""
 
     def _parse_frontmatter(self, skill_markdown: str) -> dict[str, str]:
         lines = skill_markdown.splitlines()
@@ -109,11 +98,19 @@ class SkillLoader:
             metadata[key.strip()] = value.strip()
         return {}
 
+    def _strip_frontmatter(self, content: str) -> str:
+        if not content.strip().startswith("---"):
+            return content
+        parts = content.split("---", 2)
+        if len(parts) < 3:
+            return content
+        return parts[2].strip()
+
     def _build_default_handler(self, skill_spec: SkillSpec):
         def _handler(input_data):
             return {
                 "skill_name": skill_spec.name,
-                "instructions": skill_spec.skill_markdown,
+                "instructions": self._strip_frontmatter(skill_spec.skill_markdown),
                 "input": input_data,
             }
 
