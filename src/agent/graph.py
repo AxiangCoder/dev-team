@@ -11,17 +11,18 @@ from langgraph.graph import StateGraph
 
 from src.agent.context import Context
 from src.agent.state import MessagesState
-from src.agent.nodes.team import team
+from agent.nodes.assistant_node import assistant_node
+from src.agent.nodes.skill_node import skill_node
 from src.agent.nodes.route_node import router_node
 
 
 # Define the graph
 graph = (
-    StateGraph(MessagesState, context_schema=Context)
-    .add_node("assistant", team)
-    .add_node("team", team)
+    StateGraph(state_schema=MessagesState, context_schema=Context)
+    .add_node("assistant", assistant_node)
+    .add_node("skill_node", skill_node)
     .add_edge("__start__", "assistant")
-    .add_conditional_edges("assistant", router_node, ["team", "__end__"])
-    .add_edge("team", "__end__")
+    .add_conditional_edges("assistant", router_node, ["skill_node", "__end__"])
+    .add_edge("skill_node", "__end__")
     .compile()
 )

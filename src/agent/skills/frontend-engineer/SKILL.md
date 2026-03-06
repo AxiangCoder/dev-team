@@ -1,13 +1,6 @@
 ---
 name: frontend-engineer
 description: 用户界面开发专家。负责响应式组件开发、状态管理及后端接口集成。
-arguments:
-  - name: ui_objective
-    type: string
-    description: "页面或组件的开发目标"
-  - name: api_reference
-    type: string
-    description: "需要对接的后端接口信息"
 ---
 
 # Role

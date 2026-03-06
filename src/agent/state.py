@@ -10,12 +10,12 @@ from src.agent.utils.load_models import load_models
 
 class MessagesState(TypedDict, total=False):
     messages: Annotated[list[AnyMessage], operator.add]  # 主对话状态
-    selected_skill: str  # 本轮选中的 skill
-    skill_input: dict[str, Any]  # skill 入参
-    skill_output: Any  # skill 结果
+    current_skill: str  # 本轮选中的 skill
+    # skill_input: dict[str, Any]  # skill 入参
+    # skill_output: Any  # skill 结果
     skills_prompt: str  # 注入系统提示的技能摘要
-    logs: list[str]  # 观测/调试
-    error: str  # 错误信息
+    # logs: list[str]  # 观测/调试
+    # error: str  # 错误信息
     summary: str  # 对话总结
 
 

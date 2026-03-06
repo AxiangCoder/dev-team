@@ -1,13 +1,6 @@
 ---
 name: backend-engineer
 description: 服务端开发专家。负责业务逻辑实现、API 开发、数据持久化及安全鉴权。
-arguments:
-  - name: task_instruction
-    type: string
-    description: "具体的功能实现任务"
-  - name: technical_specs
-    type: string
-    description: "依赖的数据库 Schema 或 API 协议"
 ---
 
 # Role

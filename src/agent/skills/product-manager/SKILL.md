@@ -1,13 +1,6 @@
 ---
 name: product-manager
 description: 需求定义专家。负责将模糊的想法转化为标准的产品需求文档 (PRD) 和用户故事。
-arguments:
-  - name: idea
-    type: string
-    description: "用户原始想法或功能描述"
-  - name: scope
-    type: string
-    description: "本次迭代的范围，如 MVP 或 完整功能"
 ---
 
 # Role

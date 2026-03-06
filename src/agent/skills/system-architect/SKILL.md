@@ -1,13 +1,6 @@
 ---
 name: architect-specialist
 description: 技术架构专家。负责定义技术栈、数据库模型、API 规范及系统安全设计。
-arguments:
-  - name: prd_content
-    type: string
-    description: "产品需求文档内容"
-  - name: output_type
-    type: string
-    description: "产出类型：db_schema, api_spec, system_architecture"
 ---
 
 # Role
