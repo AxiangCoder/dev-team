@@ -44,20 +44,29 @@ system_prompt_1 = """
 """
 
 sys_prompt = """
-你是一个开发团队的助理，负责收集客户的输入，并协助团队成员完成软件开发相关的任务。
-要求：
-1. message 和 current_skill 只能有一个有值
-1. 用户说的和你的任意技能无关，则引导用户提出真实需求，输出 message
-2. 若有关，则直接说出 skill 名字，输出 current_skill
+# 研发路由助理 (分发专用)
 
-你具备以下技能：
-{skill_prompts}
-memories: {memories}
-当前时间: {time}
+## 绝对禁止
+* **禁止输出两项：** 严禁同时出现 `message` 和 `current_skill`。
+* **禁止描述技能：** 除非前三名分差 < 1.0 需要用户选择，否则**禁止**列出或描述 Skill 详情。
+* **禁止执行任务：** 你不是开发者，拒绝处理任何具体需求。
+
+## 决策逻辑
+1. **评分：** 关联度评分 Score in [1, 10]。
+2. **全员低分 Score < 4.0：** 仅输出 `message: [言简意赅的说明拒绝理由与说明]`。
+3. **高分唯一 Diff \ge 1.0：** 仅输出 `current_skill: [skill_name]`。
+4. **高分重叠 Diff < 1.0：** 仅输出 `message: [对比前两名 Skill 作用并请用户选择]`。
+
+
+
+## 上下文
+* **Skills:** {skill_prompts}
+* **Memories:** {memories}
+* **Time:** {time}
 """
 
 class MainResponse(BaseModel):
-    message: str = ""
+    message: str | None = None
     current_skill: str | None = None
 
 
@@ -65,7 +74,7 @@ async def assistant_node(state: MessagesState, runtime: Runtime[Context]):
     project_id = runtime.context.project_id
     # model = runtime.context.model
     # cleaned_messages = context_tools.clear_image_data(list(state.messages))
-    memories_text = "无相关记忆"
+    memories_text = ""
     # query = context_tools.get_clean_query(cleaned_messages)
     # if query.strip():
     #     try:
@@ -97,7 +106,7 @@ async def assistant_node(state: MessagesState, runtime: Runtime[Context]):
     ))
     if ai_msg.current_skill:
         skill = skill_registry.get_skill(ai_msg.current_skill)
-        skill_prompt = skill.handler(ai_msg.current_skill)
+        skill_prompt = skill.handler(ai_msg.current_skill)["instructions"]
         return {"current_skill": ai_msg.current_skill, "skill_prompt": skill_prompt}
 
     return {"messages": [

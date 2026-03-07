@@ -13,7 +13,7 @@ class MessagesState(TypedDict, total=False):
     current_skill: str  # 本轮选中的 skill
     # skill_input: dict[str, Any]  # skill 入参
     # skill_output: Any  # skill 结果
-    skills_prompt: str  # 注入系统提示的技能摘要
+    skill_prompt: str  # 注入系统提示的技能摘要
     # logs: list[str]  # 观测/调试
     # error: str  # 错误信息
     summary: str  # 对话总结

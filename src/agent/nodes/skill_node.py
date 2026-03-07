@@ -17,15 +17,9 @@ async def skill_node (state: MessagesState, runtime: Runtime[Context]):
     skills_prompt = state.get("skills_prompt", "")
     skills_prompt += "\n\n" + "memories: " + memories_text
     skills_prompt += "\n\n" + "time: " + datetime.now().isoformat()
-    ai_msg = llm.invoke ([
-        *messages,
-        SystemMessage (skills_prompt)
-    ])
+    ai_msg = await llm.ainvoke([*messages, SystemMessage(skills_prompt)])
     return {
         "messages": [
-            *messages,
             ai_msg,
         ]
     }
-
-
