@@ -2,12 +2,9 @@
 
 from __future__ import annotations
 
-from collections.abc import Callable
 from dataclasses import dataclass, field
 from pathlib import Path
 from typing import Any
-
-SkillHandler = Callable[[Any], Any]
 
 
 @dataclass(frozen=True)
@@ -16,19 +13,21 @@ class SkillSpec:
 
     name: str
     description: str
-    skill_markdown: str
+    body: str
     root_path: Path
+    version: str | None = None
     metadata: dict[str, Any] = field(default_factory=dict)
+    input_schema: dict[str, Any] | None = None
+    output_schema: dict[str, Any] | None = None
 
 
 @dataclass(frozen=True)
-class SkillRuntime:
-    """Runtime representation of a callable skill."""
+class SkillError:
+    """Structured error payload for skill execution failures."""
 
-    name: str
-    description: str
-    handler: SkillHandler
-    metadata: dict[str, Any] = field(default_factory=dict)
+    code: str
+    message: str
+    details: dict[str, Any] = field(default_factory=dict)
 
 
 @dataclass(frozen=True)
@@ -38,6 +37,7 @@ class SkillExecutionRequest:
     skill_name: str
     input_data: Any
     context: dict[str, Any] = field(default_factory=dict)
+    mode: str = "tool_call"
 
 
 @dataclass(frozen=True)
@@ -45,7 +45,8 @@ class SkillExecutionResult:
     """Result object returned from registry execution."""
 
     skill_name: str
-    output: Any
     status: str = "success"
+    output: Any = None
+    error: SkillError | None = None
     duration_ms: float | None = None
     metadata: dict[str, Any] = field(default_factory=dict)

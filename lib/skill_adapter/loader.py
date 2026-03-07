@@ -5,13 +5,13 @@ from __future__ import annotations
 from pathlib import Path
 
 from skill_adapter.exceptions import SkillDefinitionError
-from skill_adapter.models import SkillRuntime, SkillSpec
+from skill_adapter.models import SkillSpec
 
 
 class SkillLoader:
     """Load skills from directories that contain `SKILL.md`."""
 
-    def load_directory(self, skills_directory: str | Path) -> list[SkillRuntime]:
+    def load_directory(self, skills_directory: str | Path) -> list[SkillSpec]:
         """Load all skill directories under the given root path."""
         root = Path(skills_directory)
         if not root.exists() or not root.is_dir():
@@ -19,25 +19,25 @@ class SkillLoader:
                 f"Skill directory does not exist or is not a directory: {root}"
             )
 
-        runtimes: list[SkillRuntime] = []
+        specs: list[SkillSpec] = []
         for skill_dir in sorted(path for path in root.iterdir() if path.is_dir()):
             skill_markdown_path = skill_dir / "SKILL.md"
             if not skill_markdown_path.exists():
                 continue
-            runtimes.append(self.load_skill(skill_dir))
+            specs.append(self.load_skill(skill_dir))
 
-        if not runtimes:
+        if not specs:
             raise SkillDefinitionError(
                 f"No valid skills found in {root}. Expected <skill_name>/SKILL.md"
             )
-        return runtimes
+        return specs
 
-    def load_dir(self, skills_directory: str | Path) -> list[SkillRuntime]:
+    def load_dir(self, skills_directory: str | Path) -> list[SkillSpec]:
         """Backward-compatible alias for `load_directory`."""
         return self.load_directory(skills_directory)
 
-    def load_skill(self, skill_directory: str | Path) -> SkillRuntime:
-        """Load one skill directory and create a runtime."""
+    def load_skill(self, skill_directory: str | Path) -> SkillSpec:
+        """Load one skill directory and create a skill spec."""
         directory = Path(skill_directory)
         skill_markdown_path = directory / "SKILL.md"
         if not skill_markdown_path.exists():
@@ -47,74 +47,57 @@ class SkillLoader:
         if not skill_markdown:
             raise SkillDefinitionError(f"SKILL.md is empty in {directory}")
 
-        frontmatter = self._parse_frontmatter(skill_markdown)
+        frontmatter, body = self._parse_skill_markdown(skill_markdown)
         skill_name = str(frontmatter.get("name", "")).strip()
         if not skill_name:
             raise SkillDefinitionError(
                 f"SKILL.md missing required frontmatter field 'name' in {directory}"
             )
-        description = self._extract_description(skill_markdown, frontmatter)
-        skill_spec = SkillSpec(
+        description = self._extract_description(frontmatter)
+        version = str(frontmatter.get("version", "")).strip() or None
+
+        return SkillSpec(
             name=skill_name,
             description=description,
-            skill_markdown=skill_markdown,
+            body=body,
             root_path=directory,
+            version=version,
             metadata={
                 "skill_markdown_path": str(skill_markdown_path),
                 "scripts_path": str(directory / "scripts"),
                 "assets_path": str(directory / "assets"),
                 "references_path": str(directory / "references"),
+                "frontmatter": frontmatter,
             },
         )
-        handler = self._build_default_handler(skill_spec)
-        return SkillRuntime(
-            name=skill_spec.name,
-            handler=handler,
-            description=skill_spec.description,
-            metadata=skill_spec.metadata,
-        )
 
-    def _extract_description(
-        self, skill_markdown: str, frontmatter: dict[str, str]
-    ) -> str:
+    def _extract_description(self, frontmatter: dict[str, str]) -> str:
         description = frontmatter.get("description", "").strip()
         if description:
             return description[:140]
         return ""
 
-    def _parse_frontmatter(self, skill_markdown: str) -> dict[str, str]:
+    def _parse_skill_markdown(self, skill_markdown: str) -> tuple[dict[str, str], str]:
         lines = skill_markdown.splitlines()
         if len(lines) < 3 or lines[0].strip() != "---":
-            return {}
+            return {}, skill_markdown.strip()
 
         metadata: dict[str, str] = {}
-        for line in lines[1:]:
+        end_index = None
+        for index, line in enumerate(lines[1:], start=1):
             normalized = line.strip()
             if normalized == "---":
-                return metadata
+                end_index = index
+                break
             if ":" not in normalized:
                 continue
             key, value = normalized.split(":", maxsplit=1)
             metadata[key.strip()] = value.strip()
-        return {}
+        if end_index is None:
+            return {}, skill_markdown.strip()
 
-    def _strip_frontmatter(self, content: str) -> str:
-        if not content.strip().startswith("---"):
-            return content
-        parts = content.split("---", 2)
-        if len(parts) < 3:
-            return content
-        return parts[2].strip()
-
-    def _build_default_handler(self, skill_spec: SkillSpec):
-        def _handler(input_data):
-            return {
-                "skill_name": skill_spec.name,
-                "instructions": self._strip_frontmatter(skill_spec.skill_markdown),
-                "input": input_data,
-            }
-
-        return _handler
+        body = "\n".join(lines[end_index + 1 :]).strip()
+        return metadata, body
 
 
 # Backward-compatible alias

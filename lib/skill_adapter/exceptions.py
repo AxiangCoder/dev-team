@@ -29,5 +29,13 @@ class SkillExecutionError(SkillAdapterError):
     """Raised when a skill handler fails during execution."""
 
 
+class SkillConfigurationError(SkillAdapterError):
+    """Raised when registry configuration is invalid."""
+
+
+class SkillValidationError(SkillAdapterError):
+    """Raised when runtime input or output fails validation."""
+
+
 # Backward-compatible alias
 ManifestValidationError = SkillDefinitionError

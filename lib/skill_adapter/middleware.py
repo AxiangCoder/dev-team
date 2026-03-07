@@ -5,7 +5,7 @@ from __future__ import annotations
 import time
 from collections.abc import Callable
 
-from skill_adapter.exceptions import SkillPermissionError
+from skill_adapter.exceptions import SkillPermissionError, SkillValidationError
 from skill_adapter.models import SkillExecutionRequest, SkillExecutionResult
 
 SkillInvoker = Callable[[SkillExecutionRequest], SkillExecutionResult]
@@ -48,22 +48,37 @@ class TimingMiddleware(SkillMiddleware):
 
     def wrap(self, invoker: SkillInvoker) -> SkillInvoker:
         """Wrap invoker with duration measurement."""
+
         def _wrapped(request: SkillExecutionRequest) -> SkillExecutionResult:
             start = time.perf_counter()
             result = invoker(request)
             duration_ms = (time.perf_counter() - start) * 1000
 
             logs = request.context.setdefault(self._logs_context_key, [])
-            logs.append(f"skill:{request.skill_name}:duration_ms:{duration_ms:.2f}")
+            if isinstance(logs, list):
+                logs.append(f"skill:{request.skill_name}:duration_ms:{duration_ms:.2f}")
 
             metadata = dict(result.metadata)
             metadata["duration_ms"] = duration_ms
             return SkillExecutionResult(
                 skill_name=result.skill_name,
-                output=result.output,
                 status=result.status,
+                output=result.output,
+                error=result.error,
                 duration_ms=duration_ms,
                 metadata=metadata,
             )
+
+        return _wrapped
+
+
+class ValidationMiddleware(SkillMiddleware):
+    """Validate request context shape with lightweight runtime checks."""
+
+    def wrap(self, invoker: SkillInvoker) -> SkillInvoker:
+        def _wrapped(request: SkillExecutionRequest) -> SkillExecutionResult:
+            if not isinstance(request.context, dict):
+                raise SkillValidationError("Execution context must be a dict")
+            return invoker(request)
 
         return _wrapped

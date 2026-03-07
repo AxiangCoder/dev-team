@@ -1,38 +1,203 @@
 # skill_adapter
 
-A reusable skill adapter library for LangGraph workflows.
+`skill_adapter` is a tool-first runtime library for Claude Skill-style `SKILL.md` definitions.
 
-## Features
+Current milestone supports:
 
-- Load native skill directories that contain `SKILL.md`
-- Build a ready-to-use `SkillRegistry` from one directory
-- Support middleware for permission checks and timing
-- Return typed execution results for observability
+- Skill loading from `SKILL.md`
+- Skill registration and conflict handling
+- `tool_call` execution mode
+- Middleware pipeline (validation, permission, timing)
+- LangChain and LangGraph helper adapters
 
-## Directory convention
+Current milestone does **not** support:
+
+- Script execution from `scripts/`
+- Sandboxed process runtime
+
+## Installation
+
+Copy this library into your project or install it as your internal package.
+
+If you want LangChain adapter APIs, install:
+
+```bash
+pip install langchain-core
+```
+
+## Skill Directory Convention
 
 ```text
 skills/
-  backend-engineer/
+  sql-expert/
     SKILL.md
-    scripts/        # optional
-    assets/         # optional
-    references/     # optional
+  order-analyst/
+    SKILL.md
 ```
 
-## Quick usage (one step)
+Minimal `SKILL.md` example:
+
+```md
+---
+name: sql-expert
+description: Query order analytics
+version: 0.1.0
+---
+# SQL Expert
+
+Use read-only SQL for analytics queries.
+```
+
+## Quick Start (Tool-Only)
 
 ```python
-from skill_adapter import build_skill_registry
+from langchain_core.tools import tool
 
-registry = build_skill_registry("./src/agent/skills")
-
-result = registry.execute(
-    "backend-engineer",
-    {"task": "Design order API"},
-    context={"allowed_skills": ["backend-engineer"], "logs": []},
+from skill_adapter import (
+    PermissionMiddleware,
+    ToolCallExecutor,
+    ValidationMiddleware,
+    build_skill_registry,
 )
-print(result.output)
+
+
+@tool
+def sql_tool(payload: dict) -> dict:
+    return {"rows": [], "payload": payload}
+
+
+tool_map = {"sql-expert": sql_tool}
+
+registry = build_skill_registry(
+    "./skills",
+    executors={
+        "tool_call": ToolCallExecutor(
+            tool_resolver=lambda skill_name: tool_map.get(skill_name)
+        )
+    },
+    middleware=[ValidationMiddleware(), PermissionMiddleware()],
+)
+
+result = registry.execute_by_name(
+    "sql-expert",
+    {"sql": "select * from orders limit 10"},
+    context={"allowed_skills": ["sql-expert"], "logs": []},
+    mode="tool_call",
+)
+
+if result.status == "success":
+    print(result.output)
+else:
+    print(result.error.code, result.error.message)
 ```
 
-`result.output` is an instruction packet with `skill_name`, `instructions` (from `SKILL.md`) and your `input`.
+## Core API
+
+### Loader
+
+- `SkillLoader.load_skill(path) -> SkillSpec`
+- `SkillLoader.load_directory(path) -> list[SkillSpec]`
+
+### Registry
+
+- `SkillRegistry(conflict_policy="error")`
+- `register(spec)`
+- `register_many(specs)`
+- `get(skill_name)`
+- `list()`
+- `unregister(skill_name)`
+- `add_executor(mode, executor)`
+- `use(middleware)`
+- `execute(request_or_skill_name, input_data=None, context=None, mode="tool_call")`
+- `execute_by_name(skill_name, input_data, context=None, mode="tool_call")`
+
+### Models
+
+- `SkillSpec`
+- `SkillExecutionRequest`
+- `SkillExecutionResult`
+- `SkillError`
+
+### Executors
+
+- `ToolCallExecutor(tool_resolver=...)`
+
+### Middleware
+
+- `ValidationMiddleware`
+- `PermissionMiddleware`
+- `TimingMiddleware`
+
+### Factory
+
+- `build_skill_registry(...)`
+- `build_registry(...)` (alias)
+
+### Adapters
+
+- `to_langchain_tool(registry, skill_name, mode="tool_call")`
+- `build_skills_prompt(registry, title="Available skills:")`
+- `execute_skill(registry, skill_name=..., input_data=..., context=..., mode="tool_call")`
+
+## Conflict Policy
+
+`SkillRegistry(conflict_policy=...)` supports:
+
+- `"error"`: raise on duplicate names
+- `"override"`: latest wins
+- `"keep_existing"`: ignore duplicates
+
+## Execution Contract
+
+All execution modes should return `SkillExecutionResult`:
+
+```python
+SkillExecutionResult(
+    skill_name="sql-expert",
+    status="success" | "error",
+    output=...,
+    error=SkillError(code="...", message="...", details={...}) | None,
+    metadata={...},
+)
+```
+
+## LangChain Adapter Example
+
+```python
+from skill_adapter import to_langchain_tool
+
+skill_tool = to_langchain_tool(registry, "sql-expert", mode="tool_call")
+```
+
+This exposes one registered skill as a LangChain tool. The wrapped tool internally calls `registry.execute_by_name(...)`.
+
+## LangGraph Node Example
+
+```python
+from skill_adapter import execute_skill
+
+
+def execute_skill_node(state):
+    result = execute_skill(
+        registry,
+        skill_name=state["chosen_skill"],
+        input_data={"query": state["user_query"]},
+        context={"allowed_skills": [state["chosen_skill"]], "logs": []},
+        mode="tool_call",
+    )
+    return {"skill_result": result}
+```
+
+## Migration Notes from Older Versions
+
+- Loader now returns `SkillSpec` (not runtime handlers).
+- Skill execution is now executor-driven (`ToolCallExecutor`).
+- Prefer `execute_by_name(...)` or request-based `execute(...)`.
+- `mode="tool_call"` is the active production path.
+
+## Roadmap
+
+- Keep tool-only runtime stable
+- Add richer schema validation
+- Add async tool execution
+- Add script runner in a later phase
