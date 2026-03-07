@@ -12,12 +12,13 @@ from src.agent.utils.load_models import load_models
 
 async def skill_node (state: MessagesState, runtime: Runtime[Context]):
     messages = state.get("messages", [])
-    memories_text = "无相关记忆"
+    memories_text = ""
     llm = load_models()
-    skills_prompt = state.get("skills_prompt", "")
-    skills_prompt += "\n\n" + "memories: " + memories_text
-    skills_prompt += "\n\n" + "time: " + datetime.now().isoformat()
-    ai_msg = await llm.ainvoke([*messages, SystemMessage(skills_prompt)])
+    skill_prompt = state.get("skill_prompt", "")
+    skill_prompt += "\n\n" + "memories: " + memories_text
+    skill_prompt += "\n\n" + "time: " + datetime.now().isoformat()
+    ai_msg = await llm.ainvoke([SystemMessage(content=skill_prompt), *messages])
+    ai_msg.name = "skill_node"
     return {
         "messages": [
             ai_msg,

@@ -1,3 +1,5 @@
+from typing import cast
+
 from langgraph.runtime import Runtime
 from langchain.messages import RemoveMessage, AIMessage
 
@@ -26,5 +28,10 @@ def skill_or_end_route(state: MessagesState):
         state.get("current_skill", None) is not None
         and state.get("skill_prompt", None) is not None
     ):
+        messages = state.get("messages", [])
+        if len(messages) > 0:
+            for msg in messages:
+                if msg.get("name", "") == "assistant_node":
+                    RemoveMessage(id=cast(str, msg.id))
         return "skill_node"
     return "__end__"

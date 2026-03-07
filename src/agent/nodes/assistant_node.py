@@ -96,19 +96,23 @@ async def assistant_node(state: MessagesState, runtime: Runtime[Context]):
     messages = state.get("messages", [])
     if messages and len(messages) > 10:
         messages = summarize_conversation(state)["messages"] + messages[-10:]
-    ai_msg = cast(MainResponse, await llm.with_structured_output(MainResponse).ainvoke(
-        [   
-            *messages,
-            SystemMessage(content=system_prompt),
-            # *cleaned_messages,
-            # *messages[-10:],
-        ]
-    ))
-    if ai_msg.current_skill:
-        skill = skill_registry.get_skill(ai_msg.current_skill)
-        skill_prompt = skill.handler(ai_msg.current_skill)["instructions"]
-        return {"current_skill": ai_msg.current_skill, "skill_prompt": skill_prompt}
-
-    return {"messages": [
-        AIMessage(ai_msg.message)
-    ]}
+    cus_message = cast(
+        MainResponse,
+        await llm.with_structured_output(MainResponse).ainvoke(
+            [
+                SystemMessage(content=system_prompt),
+                *messages,
+                # *cleaned_messages,
+                # *messages[-10:],
+            ]
+        ),
+    )
+    if cus_message.current_skill:
+        skill = skill_registry.get_skill(cus_message.current_skill)
+        skill_prompt = skill.handler(cus_message.current_skill)["instructions"]
+        return {
+            "current_skill": cus_message.current_skill,
+            "skill_prompt": skill_prompt,
+        }
+    ai_msg = AIMessage(content=cus_message.message, name="assistant_node")
+    return {"messages": [ai_msg]}
