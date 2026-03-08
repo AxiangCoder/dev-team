@@ -22,9 +22,11 @@ SUPERVISOR_PROMPT = """
 - 仅允许两种结果：`reply` 或 `route`。
 - 当 `action = "reply"` 时：
   - `team` 必须为 `null`
+  - `idea_summary` 必须为 `null`
   - `message` 必须是非空字符串
 - 当 `action = "route"` 时：
   - `team` 必须为 `product_manager` 或 `architecture`
+  - `idea_summary` 必须为用户的需求
   - `message` 必须为 `null`
 - 严禁同时给出有效 `team` 和有效 `message`。
 - 严禁 `team` 与 `message` 同时为空。
@@ -32,6 +34,7 @@ SUPERVISOR_PROMPT = """
 业务规则：
 - 当请求仍处于需求澄清、用户场景、流程定义、PRD 范围时，选择 `product_manager`。
 - 当请求聚焦系统设计、API、数据库、前后端实现规划或测试规划时，选择 `architecture`。
+- 当需要专业团队时，总结用户的需求，并赋值给 idea_summary
 - 仅在不需要进入任何专业团队时，选择 `reply`。
 - 当更适合交给团队处理时，你不能直接给出完整方案。
 
@@ -39,6 +42,7 @@ SUPERVISOR_PROMPT = """
 {{
   "action": "reply",
   "team": null,
+  "idea_summary": null,
   "reason": "用户信息不足，需先补充约束后再路由。",
   "message": "请先补充目标用户、核心功能和时间范围。"
 }}
@@ -48,6 +52,7 @@ SUPERVISOR_PROMPT = """
   "action": "route",
   "team": "product_manager",
   "reason": "用户处于需求初期，需要先完成 PRD 澄清。",
+  "idea_summary": "xxx"
   "message": null
 }}
 
@@ -57,6 +62,7 @@ SUPERVISOR_PROMPT = """
   "team": "product_manager",
   "reason": "xxx",
   "message": "xxx"
+  "idea_summary": "xxx"
 }}
 
 当前时间：{time}
@@ -70,6 +76,7 @@ class TopLevelDecision(BaseModel):
     team: Literal["product_manager", "architecture"] | None = None
     reason: str
     message: str | None = None
+    idea_summary: str | None = None
 
 
 async def assistant_node(state: MessagesState, runtime: Runtime[Context]):
@@ -92,6 +99,9 @@ async def assistant_node(state: MessagesState, runtime: Runtime[Context]):
 
     if decision.action == "reply":
         return {
+            "current_team": None,
+            "supervisor_reason": None,
+            "idea_summary": None,
             "final_response": decision.message or "请补充你的目标和约束。",
             "supervisor_reason": decision.reason,
         }
@@ -99,4 +109,6 @@ async def assistant_node(state: MessagesState, runtime: Runtime[Context]):
     return {
         "current_team": decision.team,
         "supervisor_reason": decision.reason,
+        "idea_summary": decision.idea_summary,
+        "final_response": None,
     }

@@ -19,3 +19,4 @@ class MessagesState(TypedDict, total=False):
     team_name: str
     final_response: str
     current_specialist: str
+    idea_summary: str
