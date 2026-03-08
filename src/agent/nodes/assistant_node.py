@@ -1,118 +1,102 @@
-from pathlib import Path
+"""Top-level supervisor node for the main graph."""
+
 from datetime import datetime
-from pydantic import BaseModel
-import os
-import logging
-from typing import cast
+from typing import Literal, cast
 
-
+from langchain_core.messages import SystemMessage
 from langgraph.runtime import Runtime
-from langchain_core.messages import AIMessage, SystemMessage, HumanMessage
+from pydantic import BaseModel
 
-from src.agent.context import Context
-from src.agent.state import MessagesState, summarize_conversation
-from src.agent.utils.load_models import load_models
-from src.agent.utils.skill_tool import get_skill_adapter
+from agent.context import Context
+from agent.state import MessagesState
+from agent.utils.load_models import load_models
+from agent.utils.skill_tool import get_skill_adapter
 
-skill_registry = get_skill_adapter()
-skill_prompts = skill_registry.build_skills_prompt()
-skill_list = skill_registry.list_skills()
+SUPERVISOR_PROMPT = """
+# 顶层 Supervisor
 
-logger = logging.getLogger(__name__)
+你是主流程唯一的路由决策者。
+请判断用户请求应该进入产品经理团队、架构团队，还是由你直接回复。
 
+输出协议（必须严格遵守）：
+- 仅允许两种结果：`reply` 或 `route`。
+- 当 `action = "reply"` 时：
+  - `team` 必须为 `null`
+  - `message` 必须是非空字符串
+- 当 `action = "route"` 时：
+  - `team` 必须为 `product_manager` 或 `architecture`
+  - `message` 必须为 `null`
+- 严禁同时给出有效 `team` 和有效 `message`。
+- 严禁 `team` 与 `message` 同时为空。
 
-system_prompt_1 = """
-# Role: 全能软件开发中枢 (Dev-Central Intelligence)
+业务规则：
+- 当请求仍处于需求澄清、用户场景、流程定义、PRD 范围时，选择 `product_manager`。
+- 当请求聚焦系统设计、API、数据库、前后端实现规划或测试规划时，选择 `architecture`。
+- 仅在不需要进入任何专业团队时，选择 `reply`。
+- 当更适合交给团队处理时，你不能直接给出完整方案。
 
-## Profile
-你是一个集成了全生命周期软件开发能力的 AI 调度中枢。你负责接收用户的原始创意，并调用你具备的专业技能（Skills）将其转化为可落地的技术方案和代码。
+合法示例（reply）：
+{{
+  "action": "reply",
+  "team": null,
+  "reason": "用户信息不足，需先补充约束后再路由。",
+  "message": "请先补充目标用户、核心功能和时间范围。"
+}}
 
-## Operational Logic (工作逻辑)
-1. **意图解析**：首先识别用户请求处于开发生命周期的哪个阶段（需求调研、产品设计、架构、编码、测试等）。
-2. **技能调用**：根据当前阶段，激活对应的专业技能模块。
+合法示例（route）：
+{{
+  "action": "route",
+  "team": "product_manager",
+  "reason": "用户处于需求初期，需要先完成 PRD 澄清。",
+  "message": null
+}}
 
-## Global Constraints (全局约束)
-- **工程化标准**：所有输出必须符合生产环境标准（代码规范、错误处理、注释清晰）。
-- **交互规范**：如果需求不明确，必须追问，严禁盲目猜测。
-- **语言要求**：技术讨论与文档使用中文，代码逻辑与变量命名遵循行业标准英文。
+非法示例（禁止）：
+{{
+  "action": "reply",
+  "team": "product_manager",
+  "reason": "xxx",
+  "message": "xxx"
+}}
 
-## memories (记忆)
-- {memories}
-
-## Current Time (当前时间)
-- {time}
+当前时间：{time}
 """
 
-sys_prompt = """
-# 研发路由助理 (分发专用)
 
-## 绝对禁止
-* **禁止输出两项：** 严禁同时出现 `message` 和 `current_skill`。
-* **禁止描述技能：** 除非前三名分差 < 1.0 需要用户选择，否则**禁止**列出或描述 Skill 详情。
-* **禁止执行任务：** 你不是开发者，拒绝处理任何具体需求。
+class TopLevelDecision(BaseModel):
+    """Structured decision returned by the top-level supervisor."""
 
-## 决策逻辑
-1. **评分：** 关联度评分 Score in [1, 10]。
-2. **全员低分 Score < 4.0：** 仅输出 `message: [言简意赅的说明拒绝理由与说明]`。
-3. **高分唯一 Diff \ge 1.0：** 仅输出 `current_skill: [skill_name]`。
-4. **高分重叠 Diff < 1.0：** 仅输出 `message: [对比前两名 Skill 作用并请用户选择]`。
-
-
-
-## 上下文
-* **Skills:** {skill_prompts}
-* **Memories:** {memories}
-* **Time:** {time}
-"""
-
-class MainResponse(BaseModel):
+    action: Literal["route", "reply"]
+    team: Literal["product_manager", "architecture"] | None = None
+    reason: str
     message: str | None = None
-    current_skill: str | None = None
 
 
 async def assistant_node(state: MessagesState, runtime: Runtime[Context]):
-    project_id = runtime.context.project_id
-    # model = runtime.context.model
-    # cleaned_messages = context_tools.clear_image_data(list(state.messages))
-    memories_text = ""
-    # query = context_tools.get_clean_query(cleaned_messages)
-    # if query.strip():
-    #     try:
-    #         memories = await cast(BaseStore, runtime.store).asearch(
-    #             ("memories", project_id), query=query, limit=3
-    #         )
-    #         if memories:
-    #             memories_text = "\n".join([f"- {m.value}" for m in memories])
-    #     except Exception as exc:
-    #         logger.error("Memory search failed in hello_node: %s", exc)
+    """Route the request to a team or reply directly."""
     llm = load_models()
     messages = state.get("messages", [])
-    system_prompt = sys_prompt.format(
-        memories=memories_text,
-        time=datetime.now().isoformat(),
-        skill_prompts=skill_prompts,
-        next_skill="",
-    )
-    messages = state.get("messages", [])
-    if messages and len(messages) > 10:
-        messages = summarize_conversation(state)["messages"] + messages[-10:]
-    cus_message = cast(
-        MainResponse,
-        await llm.with_structured_output(MainResponse).ainvoke(
+    decision = cast(
+        TopLevelDecision,
+        await llm.with_structured_output(TopLevelDecision).ainvoke(
             [
-                SystemMessage(content=system_prompt),
+                SystemMessage(
+                    content=SUPERVISOR_PROMPT.format(
+                        time=datetime.now().isoformat(),
+                    )
+                ),
                 *messages,
-                # *cleaned_messages,
-                # *messages[-10:],
             ]
         ),
     )
-    if cus_message.current_skill:
-        skill = skill_registry.get_skill(cus_message.current_skill)
-        skill_prompt = skill.handler(cus_message.current_skill)["instructions"]
+
+    if decision.action == "reply":
         return {
-            "current_skill": cus_message.current_skill,
-            "skill_prompt": skill_prompt,
+            "final_response": decision.message or "请补充你的目标和约束。",
+            "supervisor_reason": decision.reason,
         }
-    ai_msg = AIMessage(content=cus_message.message, name="assistant_node")
-    return {"messages": [ai_msg]}
+
+    return {
+        "current_team": decision.team,
+        "supervisor_reason": decision.reason,
+    }
