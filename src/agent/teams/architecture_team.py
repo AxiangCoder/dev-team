@@ -20,7 +20,7 @@ QA_INSTRUCTIONS = get_skill_instructions("qa-engineer")
 class ArchitectureTeamState(TypedDict, total=False):
     """State carried inside the architecture team subgraph."""
 
-    request_text: str
+    idea_summary: str
     specialist_choice: Literal[
         "architect_specialist",
         "backend_engineer",

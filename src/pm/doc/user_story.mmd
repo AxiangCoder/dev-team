@@ -1,0 +1,50 @@
+graph TD
+    %% 开始与输入
+    Start((用户原始需求输入)) --> Node1[Node 1: 需求拆解与优先级（breaf_story）]
+
+    %% Node 1 内部逻辑
+    subgraph Node1_Logic [策略: 宽度扩展]
+        n1_1[AI 提取 Epic/Features]
+        n1_2[拆分为简略 User Stories]
+        n1_3[ICE 模型排序/去重]
+    end
+
+    %% 子图逻辑：递归丰满
+    Node1 --> Subgraph_Start{遍历 Stories}
+    
+    subgraph Refinement_Subgraph [子图: 深度填充模式]
+        direction TB
+        Node2[Node 2: 正向路径填充] --> n2_detail[生成 As a/I want/So that<br/>定义 Happy Path AC]
+        n2_detail --> Node3[Node 3: 异常边界挖掘]
+        Node3 --> n3_detail[挖掘 Unhappy Path<br/>补充业务约束/状态机]
+    end
+
+    Subgraph_Start -- 传入未丰满 Story --> Refinement_Subgraph
+    Refinement_Subgraph -- 更新 Story 状态 --> Subgraph_Start
+    
+    %% 全局评审
+    Subgraph_Start -- 所有故事处理完毕 --> Node4[Node 4: 全局逻辑复盘]
+
+    subgraph Node4_Output [产出物预览]
+        n4_1[Mermaid 流程图代码]
+        n4_2[全量需求清单预览]
+    end
+
+    %% 人类在环决策
+    Node4 --> HumanCheck{用户确认结论?}
+    
+    HumanCheck -- "逻辑有误/需调整" --> Refinement_Subgraph
+    HumanCheck -- "需要新增功能" --> Node1
+    HumanCheck -- "确认 OK" --> Node5[Node 5: 结构化输出]
+
+    %% 最终产出
+    Node5 --> FinalDoc[最终产出: 完整 PRD/User Stories JSON]
+    FinalDoc --> End((结束))
+
+    %% 样式定义
+    style Node1 fill:#e3f2fd,stroke:#1565c0
+    style Refinement_Subgraph fill:#f9f9f9,stroke:#333,stroke-dasharray: 5 5
+    style Node2 fill:#fff3e0,stroke:#ef6c00
+    style Node3 fill:#fce4ec,stroke:#c2185b
+    style Node4 fill:#e8f5e9,stroke:#2e7d32
+    style HumanCheck fill:#f3e5f5,stroke:#7b1fa2,stroke-width:2px

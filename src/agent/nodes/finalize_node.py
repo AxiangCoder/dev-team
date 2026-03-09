@@ -28,3 +28,4 @@ def finalize_node(state: MessagesState):
         "final_response": "\n".join(part for part in parts if part),
         "messages": [AIMessage(content="\n".join(part for part in parts if part), name="finalize_node")],
     }
+
